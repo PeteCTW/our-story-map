@@ -65,7 +65,7 @@ legend{font-weight:600;font-size:14px;padding:0 4px}
     <label>Date<input id="date" type="date"></label>
     <div class="grid2">
       <label>Zoom<input id="zoom" type="range" min="11" max="18" step="1"></label>
-      <label>Map style<select id="style"><option value="rastertiles/voyager">Colour</option><option value="light_all">Light</option><option value="dark_all">Dark</option></select></label>
+      <label>Map style<select id="style"><option value="osm_bright">Colour</option><option value="alidade_smooth">Light</option><option value="alidade_smooth_dark">Dark</option><option value="stamen_toner_lite">Ink</option></select></label>
     </div>
     <div class="grid2">
       <label>Pin colour<input id="pin" type="color"></label>
@@ -82,7 +82,7 @@ legend{font-weight:600;font-size:14px;padding:0 4px}
       <button id="dl" type="button">Download PNG</button>
     </div>
     <p id="tilemsg" class="msg warn"></p>
-    <p class="small">Map data © OpenStreetMap contributors, map tiles © CARTO. Your last settings are remembered in this browser.</p>
+    <p class="small">Map data © OpenStreetMap contributors, © OpenMapTiles, tiles © Stadia Maps. Your last settings are remembered in this browser.</p>
   </section>
   <section class="preview"><canvas id="c" width="1440" height="1720" aria-label="Preview of the printable map"></canvas></section>
 </main>
@@ -98,8 +98,10 @@ const MM = 20, CARD = {w: 72*MM, h: 86*MM, img: 62*MM, side: 5*MM, top: 5*MM};
 const VIEW = 620; // logical map pixels across the image
 
 const state = {lat: 53.479444, lng: -2.245278, title: 'Where we met', date: new Date().toISOString().slice(0,10),
-  zoom: 15, style: 'rastertiles/voyager', pin: '#d6334a', fmt: 'dms', out: 'card'};
+  zoom: 15, style: 'osm_bright', pin: '#d6334a', fmt: 'dms', out: 'card'};
 try { Object.assign(state, JSON.parse(localStorage.getItem('ourStoryMap') || '{}')); } catch (e) {}
+const STYLES = ['osm_bright','alidade_smooth','alidade_smooth_dark','stamen_toner_lite'];
+if (!STYLES.includes(state.style)) state.style = 'osm_bright';
 const save = () => { try { localStorage.setItem('ourStoryMap', JSON.stringify(state)); } catch (e) {} };
 
 const fields = ['lat','lng','title','date','zoom','style','pin','fmt'];
@@ -114,7 +116,7 @@ function tile(style, z, x, y) {
   const p = new Promise(res => {
     const im = new Image(); im.crossOrigin = 'anonymous';
     im.onload = () => res(im); im.onerror = () => res(null);
-    im.src = `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/${style}/${z}/${x}/${y}@2x.png`;
+    im.src = `https://tiles.stadiamaps.com/tiles/${style}/${z}/${x}/${y}@2x.png`;
   });
   tiles.set(key, p); return p;
 }
@@ -179,7 +181,7 @@ async function render() {
   g.font = `600 ${Math.round(S * .015)}px Manrope, sans-serif`; g.textAlign = 'right';
   g.fillStyle = state.style.includes('dark') ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.45)';
   g.textBaseline = card ? 'bottom' : 'top';
-  g.fillText('© OpenStreetMap © CARTO', S - S * .015, card ? S - S * .012 : S * .012);
+  g.fillText('© Stadia Maps © OpenMapTiles © OpenStreetMap', S - S * .015, card ? S - S * .012 : S * .012);
 
   const W = card ? CARD.w : S, H = card ? CARD.h : S;
   C.width = W; C.height = H; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
@@ -204,7 +206,7 @@ async function render() {
     ctx.fillStyle = '#4a4440'; ctx.font = `600 ${Math.round(S * .026)}px Manrope, sans-serif`;
     ctx.fillText([coordText(), dateText()].filter(Boolean).join('   ·   '), S / 2, S - S * .035, S * .92);
   }
-  $('tilemsg').textContent = missing ? `${missing} map tile(s) didn't load. Check your connection, then nudge the zoom to retry.` : '';
+  $('tilemsg').textContent = missing ? `${missing} map tile(s) didn't load. If this is a new web address, add it to the allowed domains in your Stadia Maps account.` : '';
 }
 
 let timer;
@@ -222,8 +224,8 @@ function setPos(lat, lng, pan) {
 
 if (window.L) {
   map = L.map('pick').setView([state.lat, state.lng], +state.zoom);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    {subdomains: 'abcd', maxZoom: 19, attribution: '© OpenStreetMap © CARTO'}).addTo(map);
+  L.tileLayer('https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png',
+    {maxZoom: 20, attribution: '© Stadia Maps © OpenMapTiles © OpenStreetMap'}).addTo(map);
   mk = L.marker([state.lat, state.lng], {draggable: true,
     icon: L.divIcon({className: '', html: '<div class="pinDot"></div>', iconSize: [22, 22], iconAnchor: [11, 26]})}).addTo(map);
   mk.on('dragend', () => { const p = mk.getLatLng(); setPos(p.lat, p.lng, false); });
