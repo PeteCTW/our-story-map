@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Our Story map maker</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3efe8;--ink:#2a2522;--soft:#6b625c;--line:#ddd5ca;--card:#fffdf9;--accent:#d6334a;color-scheme:light}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Manrope,system-ui,sans-serif}
+header{padding:28px max(5vw,16px) 8px;max-width:1280px;margin:auto}
+h1{font:700 clamp(30px,4vw,44px)/1.05 Caveat,cursive;margin:0 0 4px}
+header p{margin:0;color:var(--soft);max-width:62ch}
+main{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:clamp(20px,4vw,56px);padding:20px max(5vw,16px) 48px;max-width:1280px;margin:auto;align-items:start}
+.controls{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;display:grid;gap:14px}
+label{display:grid;gap:5px;font-weight:600;font-size:14px}
+input,select,button{font:inherit;font-size:16px}
+input[type=text],input[type=number],input[type=date],input:not([type]),select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);min-height:44px}
+input[type=range]{width:100%;min-height:44px;accent-color:var(--accent)}
+input[type=color]{width:100%;height:44px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:4px}
+:focus-visible{outline:3px solid #2f6fdf;outline-offset:2px}
+.row{display:flex;gap:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{min-height:44px;padding:0 16px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:600;cursor:pointer}
+button.primary{background:var(--ink);color:#fff;border-color:var(--ink);font-size:17px}
+button.primary:hover{background:#000}
+#pick{height:240px;border-radius:10px;border:1px solid var(--line);overflow:hidden}
+.hint,.small,.msg{margin:0;font-size:13px;color:var(--soft);font-weight:400}
+.msg:empty{display:none}
+.warn{color:#a1262f}
+fieldset{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin:0;display:grid;gap:6px}
+legend{font-weight:600;font-size:14px;padding:0 4px}
+.radio{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:15px;min-height:32px}
+.radio input{margin-top:5px;accent-color:var(--accent)}
+.preview{position:sticky;top:20px;display:grid;place-items:center;padding:clamp(10px,3vw,40px);background:radial-gradient(circle at 30% 20%,#fbf8f2,#e7e0d4);border-radius:18px;min-height:420px}
+#c{width:min(100%,560px);height:auto;transform:rotate(-1.6deg);box-shadow:0 2px 4px rgba(0,0,0,.08),0 18px 40px rgba(60,40,20,.22);border-radius:3px;background:#fff}
+.pinDot{width:22px;height:22px;border-radius:50% 50% 50% 0;background:var(--accent);transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+@media (max-width:860px){main{grid-template-columns:1fr}.preview{position:static;order:-1}}
+@media (prefers-reduced-motion:reduce){#c{transform:none}}
+#printOut{display:none}
+@media print{body{background:#fff}header,main{display:none}#printOut{display:block}#printOut img{display:block;width:100%;height:auto}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Our Story map maker</h1>
+  <p>Find the spot, add a title and date, download. Every map comes out in the same style, so the pages of the book all match.</p>
+</header>
+<main>
+  <section class="controls">
+    <label for="q">Find a place</label>
+    <div class="row"><input id="q" placeholder="e.g. Albert Square, Manchester"><button id="go" type="button">Search</button></div>
+    <p id="msg" class="msg"></p>
+    <div id="pick" aria-label="Map for picking the exact spot"></div>
+    <p class="hint">Click the map or drag the pin to set the exact spot.</p>
+    <div class="grid2">
+      <label>Latitude<input id="lat" type="number" step="0.000001"></label>
+      <label>Longitude<input id="lng" type="number" step="0.000001"></label>
+    </div>
+    <label>Or paste coordinates from Google Maps<input id="paste" placeholder="53.4794, -2.2453"></label>
+    <label>Title<input id="title" maxlength="40"></label>
+    <label>Date<input id="date" type="date"></label>
+    <div class="grid2">
+      <label>Zoom<input id="zoom" type="range" min="11" max="18" step="1"></label>
+      <label>Map style<select id="style"><option value="rastertiles/voyager">Colour</option><option value="light_all">Light</option><option value="dark_all">Dark</option></select></label>
+    </div>
+    <div class="grid2">
+      <label>Pin colour<input id="pin" type="color"></label>
+      <label>Coordinates<select id="fmt"><option value="dms">53°28′46″N</option><option value="dec">53.4794° N</option></select></label>
+    </div>
+    <fieldset>
+      <legend>Output</legend>
+      <label class="radio"><input type="radio" name="out" value="card"> Polaroid card, caption in the white strip (for online retro prints or a home printer)</label>
+      <label class="radio"><input type="radio" name="out" value="instax"> Instax print, square with the caption on the map (the film adds its own white frame)</label>
+    </fieldset>
+    <button id="share" class="primary" type="button">Share to Instax / Photos</button>
+    <div class="grid2">
+      <button id="print" type="button">Print</button>
+      <button id="dl" type="button">Download PNG</button>
+    </div>
+    <p id="tilemsg" class="msg warn"></p>
+    <p class="small">Map data © OpenStreetMap contributors, map tiles © CARTO. Your last settings are remembered in this browser.</p>
+  </section>
+  <section class="preview"><canvas id="c" width="1440" height="1720" aria-label="Preview of the printable map"></canvas></section>
+</main>
+<div id="printOut"><img id="printImg" alt=""></div>
+<style id="pageSize"></style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+{
+const $ = id => document.getElementById(id);
+const C = $('c'), ctx = C.getContext('2d');
+// Instax SQUARE film proportions: 72 x 86 mm card, 62 x 62 mm image. 20 px per mm.
+const MM = 20, CARD = {w: 72*MM, h: 86*MM, img: 62*MM, side: 5*MM, top: 5*MM};
+const VIEW = 620; // logical map pixels across the image
+
+const state = {lat: 53.479444, lng: -2.245278, title: 'Where we met', date: new Date().toISOString().slice(0,10),
+  zoom: 15, style: 'rastertiles/voyager', pin: '#d6334a', fmt: 'dms', out: 'card'};
+try { Object.assign(state, JSON.parse(localStorage.getItem('ourStoryMap') || '{}')); } catch (e) {}
+const save = () => { try { localStorage.setItem('ourStoryMap', JSON.stringify(state)); } catch (e) {} };
+
+const fields = ['lat','lng','title','date','zoom','style','pin','fmt'];
+fields.forEach(k => { $(k).value = state[k]; });
+(document.querySelector(`input[name=out][value="${state.out}"]`) || document.querySelector('input[name=out]')).checked = true;
+
+const tiles = new Map();
+function tile(style, z, x, y) {
+  const n = 2 ** z; x = ((x % n) + n) % n;
+  const key = `${style}/${z}/${x}/${y}`;
+  if (tiles.has(key)) return tiles.get(key);
+  const p = new Promise(res => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => res(im); im.onerror = () => res(null);
+    im.src = `https://${'abcd'[(x + y) % 4]}.basemaps.cartocdn.com/${style}/${z}/${x}/${y}@2x.png`;
+  });
+  tiles.set(key, p); return p;
+}
+
+async function drawMap(g, size, lat, lng, z, style) {
+  const k = size / VIEW, world = 256 * 2 ** z;
+  const s = Math.sin(lat * Math.PI / 180);
+  const cx = (lng + 180) / 360 * world;
+  const cy = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * world;
+  const x0 = cx - VIEW / 2, y0 = cy - VIEW / 2;
+  const jobs = [];
+  for (let ty = Math.floor(y0 / 256); ty <= Math.floor((y0 + VIEW) / 256); ty++)
+    for (let tx = Math.floor(x0 / 256); tx <= Math.floor((x0 + VIEW) / 256); tx++)
+      if (ty >= 0 && ty < 2 ** z) jobs.push(tile(style, z, tx, ty).then(im => ({im, tx, ty})));
+  const got = await Promise.all(jobs);
+  g.fillStyle = style.includes('dark') ? '#262626' : '#eeece6'; g.fillRect(0, 0, size, size);
+  let missing = 0;
+  for (const t of got) {
+    if (!t.im) { missing++; continue; }
+    g.drawImage(t.im, (t.tx * 256 - x0) * k, (t.ty * 256 - y0) * k, 256 * k + 1, 256 * k + 1);
+  }
+  return missing;
+}
+
+function drawPin(g, x, y, r, col) {
+  g.save(); g.translate(x, y);
+  g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = r * .6; g.shadowOffsetY = r * .18;
+  g.beginPath(); g.moveTo(0, 0);
+  g.bezierCurveTo(-r * .35, -r * .9, -r, -r * 1.25, -r, -r * 1.9);
+  g.arc(0, -r * 1.9, r, Math.PI, 0);
+  g.bezierCurveTo(r, -r * 1.25, r * .35, -r * .9, 0, 0);
+  g.closePath(); g.fillStyle = col; g.fill();
+  g.shadowColor = 'transparent'; g.lineWidth = r * .13; g.strokeStyle = '#fff'; g.stroke();
+  g.translate(0, -r * 1.92); const h = r * .55;
+  g.beginPath(); g.moveTo(0, h * .6);
+  g.bezierCurveTo(-h * 1.35, -h * .2, -h * .6, -h * 1.15, 0, -h * .45);
+  g.bezierCurveTo(h * .6, -h * 1.15, h * 1.35, -h * .2, 0, h * .6);
+  g.fillStyle = '#fff'; g.fill();
+  g.restore();
+}
+
+function dms(v, pos, neg) {
+  const a = Math.abs(v); let d = Math.floor(a), m = Math.floor((a - d) * 60), s = Math.round(((a - d) * 60 - m) * 60);
+  if (s === 60) { s = 0; m++; } if (m === 60) { m = 0; d++; }
+  return `${d}°${String(m).padStart(2,'0')}′${String(s).padStart(2,'0')}″${v >= 0 ? pos : neg}`;
+}
+const coordText = () => {
+  const la = +state.lat, ln = +state.lng;
+  return state.fmt === 'dms' ? `${dms(la,'N','S')}   ${dms(ln,'E','W')}`
+    : `${Math.abs(la).toFixed(4)}° ${la >= 0 ? 'N' : 'S'}   ${Math.abs(ln).toFixed(4)}° ${ln >= 0 ? 'E' : 'W'}`;
+};
+const dateText = () => state.date ? new Date(state.date + 'T12:00').toLocaleDateString('en-GB', {day:'numeric', month:'long', year:'numeric'}) : '';
+
+let renderId = 0;
+async function render() {
+  const id = ++renderId, card = state.out === 'card', S = CARD.img;
+  const off = document.createElement('canvas'); off.width = off.height = S;
+  const g = off.getContext('2d');
+  const missing = await drawMap(g, S, +state.lat, +state.lng, +state.zoom, state.style);
+  if (id !== renderId) return;
+  drawPin(g, S / 2, S / 2, S * .042, state.pin);
+  g.font = `600 ${Math.round(S * .015)}px Manrope, sans-serif`; g.textAlign = 'right';
+  g.fillStyle = state.style.includes('dark') ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.45)';
+  g.textBaseline = card ? 'bottom' : 'top';
+  g.fillText('© OpenStreetMap © CARTO', S - S * .015, card ? S - S * .012 : S * .012);
+
+  const W = card ? CARD.w : S, H = card ? CARD.h : S;
+  C.width = W; C.height = H; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  if (card) {
+    ctx.fillStyle = '#fbfaf7'; ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(off, CARD.side, CARD.top);
+    ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.lineWidth = 2; ctx.strokeRect(CARD.side, CARD.top, S, S);
+    const base = CARD.top + S, strip = H - base, maxW = W - CARD.side * 3;
+    ctx.fillStyle = '#2a2522'; ctx.font = `700 ${Math.round(strip * .3)}px Caveat, cursive`;
+    ctx.fillText(state.title, W / 2, base + strip * .42, maxW);
+    ctx.fillStyle = '#5b544f'; ctx.font = `600 ${Math.round(strip * .095)}px Manrope, sans-serif`;
+    ctx.fillText(coordText(), W / 2, base + strip * .65, maxW);
+    ctx.font = `400 ${Math.round(strip * .095)}px Manrope, sans-serif`;
+    ctx.fillText(dateText(), W / 2, base + strip * .83, maxW);
+  } else {
+    ctx.drawImage(off, 0, 0);
+    const bh = S * .28, gr = ctx.createLinearGradient(0, S - bh, 0, S);
+    gr.addColorStop(0, 'rgba(255,253,249,0)'); gr.addColorStop(.4, 'rgba(255,253,249,.9)'); gr.addColorStop(1, 'rgba(255,253,249,.97)');
+    ctx.fillStyle = gr; ctx.fillRect(0, S - bh, S, bh);
+    ctx.fillStyle = '#2a2522'; ctx.font = `700 ${Math.round(S * .072)}px Caveat, cursive`;
+    ctx.fillText(state.title, S / 2, S - S * .085, S * .9);
+    ctx.fillStyle = '#4a4440'; ctx.font = `600 ${Math.round(S * .026)}px Manrope, sans-serif`;
+    ctx.fillText([coordText(), dateText()].filter(Boolean).join('   ·   '), S / 2, S - S * .035, S * .92);
+  }
+  $('tilemsg').textContent = missing ? `${missing} map tile(s) didn't load. Check your connection, then nudge the zoom to retry.` : '';
+}
+
+let timer;
+const update = () => { save(); clearTimeout(timer); timer = setTimeout(render, 120); };
+
+let map = null, mk = null;
+function setPos(lat, lng, pan) {
+  if (!isFinite(+lat) || !isFinite(+lng)) return;
+  state.lat = +(+lat).toFixed(6); state.lng = +(+lng).toFixed(6);
+  $('lat').value = state.lat; $('lng').value = state.lng;
+  if (mk) mk.setLatLng([state.lat, state.lng]);
+  if (pan && map) map.setView([state.lat, state.lng], Math.max(map.getZoom(), 15));
+  update();
+}
+
+if (window.L) {
+  map = L.map('pick').setView([state.lat, state.lng], +state.zoom);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    {subdomains: 'abcd', maxZoom: 19, attribution: '© OpenStreetMap © CARTO'}).addTo(map);
+  mk = L.marker([state.lat, state.lng], {draggable: true,
+    icon: L.divIcon({className: '', html: '<div class="pinDot"></div>', iconSize: [22, 22], iconAnchor: [11, 26]})}).addTo(map);
+  mk.on('dragend', () => { const p = mk.getLatLng(); setPos(p.lat, p.lng, false); });
+  map.on('click', e => setPos(e.latlng.lat, e.latlng.lng, false));
+} else {
+  $('pick').style.display = 'none';
+  $('msg').textContent = 'The picker map could not load. You can still type or paste coordinates.';
+}
+
+['title','date','style','pin','fmt'].forEach(k => $(k).addEventListener('input', () => { state[k] = $(k).value; update(); }));
+$('zoom').addEventListener('input', () => { state.zoom = +$('zoom').value; if (map) map.setZoom(state.zoom); update(); });
+['lat','lng'].forEach(k => $(k).addEventListener('change', () => setPos($('lat').value, $('lng').value, true)));
+$('paste').addEventListener('input', () => {
+  const m = $('paste').value.match(/(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)/);
+  if (m) setPos(m[1], m[2], true);
+});
+document.querySelectorAll('input[name=out]').forEach(r => r.addEventListener('change', () => { state.out = r.value; update(); }));
+
+async function search() {
+  const q = $('q').value.trim(); if (!q) return;
+  $('msg').textContent = 'Searching…';
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q));
+    const j = await r.json();
+    if (!j.length) { $('msg').textContent = 'No match. Try adding the town, or paste coordinates instead.'; return; }
+    $('msg').textContent = j[0].display_name;
+    setPos(j[0].lat, j[0].lon, true);
+  } catch (e) { $('msg').textContent = 'Search failed. Paste coordinates from Google Maps instead.'; }
+}
+$('go').addEventListener('click', search);
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
+
+const fileName = () => (state.title || 'map').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + (state.date ? '-' + state.date : '') + '.png';
+const fail = () => { $('tilemsg').textContent = 'Could not export the image. Try Chrome, Edge, Safari or Firefox.'; };
+
+$('dl').addEventListener('click', () => {
+  try {
+    const a = document.createElement('a');
+    a.download = fileName(); a.href = C.toDataURL('image/png'); a.click();
+  } catch (e) { fail(); }
+});
+
+// Print at true size: 72 x 86 mm polaroid card, or 62 x 62 mm Instax image
+$('print').addEventListener('click', () => {
+  try {
+    $('printImg').src = C.toDataURL('image/png');
+    const card = state.out === 'card';
+    $('pageSize').textContent = `@media print{@page{margin:10mm}#printOut img{width:${card ? 72 : 62}mm}}`;
+    setTimeout(() => window.print(), 100);
+  } catch (e) { fail(); }
+});
+
+// Share sheet on phones: send straight to the Instax app, Photos, WhatsApp etc.
+$('share').addEventListener('click', () => {
+  C.toBlob(async blob => {
+    if (!blob) return fail();
+    const file = new File([blob], fileName(), {type: 'image/png'});
+    if (navigator.canShare && navigator.canShare({files: [file]})) {
+      try { await navigator.share({files: [file], title: state.title}); }
+      catch (e) { if (e.name !== 'AbortError') fail(); }
+    } else {
+      $('dl').click();
+      $('tilemsg').textContent = 'Sharing works on phones. On this device the image was downloaded instead.';
+    }
+  }, 'image/png');
+});
+
+const fonts = document.fonts ? Promise.all(['700 40px Caveat','600 20px Manrope','400 20px Manrope'].map(f => document.fonts.load(f))) : Promise.resolve();
+fonts.catch(() => {}).finally(render);
+}
+</script>
+</body>
+</html>
