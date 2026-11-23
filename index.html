@@ -168,7 +168,12 @@ const coordText = () => {
   return state.fmt === 'dms' ? `${dms(la,'N','S')}   ${dms(ln,'E','W')}`
     : `${Math.abs(la).toFixed(4)}° ${la >= 0 ? 'N' : 'S'}   ${Math.abs(ln).toFixed(4)}° ${ln >= 0 ? 'E' : 'W'}`;
 };
-const dateText = () => state.date ? new Date(state.date + 'T12:00').toLocaleDateString('en-GB', {day:'numeric', month:'long', year:'numeric'}) : '';
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th','st','nd','rd'][n % 10] || 'th');
+const dateText = () => {
+  if (!state.date) return '';
+  const d = new Date(state.date + 'T12:00');
+  return `${ordinal(d.getDate())} ${d.toLocaleDateString('en-GB', {month: 'long'})} ${d.getFullYear()}`;
+};
 
 let renderId = 0;
 async function render() {
